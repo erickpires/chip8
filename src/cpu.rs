@@ -266,6 +266,18 @@ impl Cpu {
             },
         }
     }
+
+    pub(crate) fn decrement_timers(&mut self) -> bool {
+        if self.delay_timer > 0 {
+            self.delay_timer -= 1;
+        }
+
+        if self.sound_timer > 0 {
+            self.sound_timer -= 1;
+        }
+
+        self.sound_timer > 0
+    }
 }
 
 impl From<u16> for Instruction {
