@@ -6,7 +6,11 @@ extern crate sdl2;
 use std::{fs::File, io::Read};
 use std::time::Duration;
 
+use display::Display;
+use sdl2::rect::Rect;
 use sdl2::{pixels::Color, keyboard::Keycode, EventPump, render::Canvas};
+
+const PIXEL_SCALE: u32 = 8;
 
 fn main() {
     let mut is_running = true;
@@ -34,9 +38,9 @@ fn main() {
 
         cpu.tick();
 
-        update_display(&mut canvas);
+        update_display(&mut canvas, &cpu.display);
 
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60))
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 600))
     }
 }
 
@@ -44,10 +48,11 @@ fn init_sdl() -> (Canvas<sdl2::video::Window>, EventPump){
     let sdl_context = sdl2::init().unwrap();
     let video = sdl_context.video().unwrap();
 
-    let window = video.window("Chip 8", 800, 600)
-        .position_centered()
-        .build()
-        .unwrap();
+    let window = video.window(
+        "Chip 8", 
+        display::DISPLAY_WIDTH as u32 * PIXEL_SCALE, 
+        display::DISPLAY_HEIGHT as u32 * PIXEL_SCALE
+    ).position_centered().build().unwrap();
 
     let mut canvas = window.into_canvas().build().unwrap();
 
@@ -75,7 +80,7 @@ fn handle_event_loop(event_pump: &mut EventPump) -> Vec<Event> {
                 result.push(Event::Quit)
             },
             sdl2::event::Event::KeyUp { keycode: Some(code), ..} => {
-                print!("Key pressed: {}", code);
+                println!("Key pressed: {}", code);
 
                 if code == Keycode::Escape {
                     result.push(Event::Quit)
@@ -91,9 +96,18 @@ fn handle_event_loop(event_pump: &mut EventPump) -> Vec<Event> {
     return result
 }
 
-fn update_display(canvas: &mut Canvas<sdl2::video::Window>) {
-    let rand_color = rand::random();
-    canvas.set_draw_color(Color::RGB(rand_color, 0, rand_color));
-    canvas.clear();
+fn update_display(canvas: &mut Canvas<sdl2::video::Window>, display: &Display) {
+    let mut data_index = 0;
+    for y_index in 0..(display::DISPLAY_HEIGHT as u32) {
+        for x_index in 0..(display::DISPLAY_WIDTH as u32) {
+            let color = display.data[data_index];
+            canvas.set_draw_color(Color::RGB(color, color, color));
+
+            let _ = canvas.fill_rect(Rect::new((x_index * PIXEL_SCALE) as i32, (y_index * PIXEL_SCALE) as i32, PIXEL_SCALE, PIXEL_SCALE));
+
+            data_index += 1;
+        }
+    }
+    
     canvas.present();
 }

@@ -22,6 +22,8 @@ const DEFAULT_FONT: [u8; 80] = [
 ];
 
 pub(crate) struct Cpu {
+    pub(crate) display: Display,
+
     memory: [u8; 4 * 1024],
     registers: [u8; 16],
     program_counter: u16,
@@ -30,7 +32,6 @@ pub(crate) struct Cpu {
     sound_timer: u8,
 
     stack: Vec<u16>,
-    display: Display,
 
     compatibility_mode: bool,
 }
@@ -57,7 +58,7 @@ enum ALUOperation {
 #[derive(Debug)]
 enum OpCode {
     ClearDisplay,
-    UpdateDisplay,
+    DrawSprite,
     ReturnFromSubrotine,
     JumpAbsolute,
     JumpRelative,
@@ -110,7 +111,7 @@ impl Cpu {
         }
     }
 
-    pub(crate) fn load_rom(self: &mut Self, rom: &Vec<u8>, compatibity_mode: bool) {
+    pub(crate) fn load_rom(&mut self, rom: &Vec<u8>, compatibity_mode: bool) {
         self.compatibility_mode = compatibity_mode;
         self.program_counter = ROM_START_ADDR as u16;
         
@@ -127,7 +128,7 @@ impl Cpu {
         }
     }
 
-    pub(crate) fn tick(self: &mut Self) {
+    pub(crate) fn tick(&mut self) {
         let pc = self.program_counter as usize;
         let instruction_hi = self.memory[pc];
         let instruction_lo = self.memory[pc + 1];
@@ -137,6 +138,59 @@ impl Cpu {
         let instruction = Instruction::from_word(instruction_word);
 
         println!("Instruction: {:?}", instruction.op_code);
+
+        match instruction.op_code {
+            OpCode::ClearDisplay => {
+                self.display.clear();
+            },
+            OpCode::DrawSprite => {
+                let x_coord = self.registers[instruction.x_register_index];
+                let y_coord = self.registers[instruction.y_register_index];
+
+                let sprite_start_index = self.index_register as usize;
+                let sprite_len = instruction.immediate_half_byte as usize;
+
+                let sprite = &self.memory[sprite_start_index..(sprite_start_index + sprite_len)];
+
+                self.display.draw_sprite(x_coord, y_coord, sprite);
+            },
+            OpCode::ReturnFromSubrotine => todo!(),
+            OpCode::JumpAbsolute => {
+                self.program_counter = instruction.immediate_word;
+            },
+            OpCode::JumpRelative => todo!(),
+            OpCode::CallSubrotine => todo!(),
+            OpCode::SkipIfEqual { operand_type } => todo!(),
+            OpCode::SkipIfNotEqual { operand_type } => todo!(),
+            OpCode::ArithmeticLogic { operand_type, operation } => {
+                let lhs = self.registers[instruction.x_register_index];
+                let rhs = match operand_type {
+                    OperandType::Register => { self.registers[instruction.y_register_index] },
+                    OperandType::Immediate => { instruction.immediate_byte },
+                };
+
+                let result = operation.perform(lhs, rhs);
+                self.registers[instruction.x_register_index] = result;
+            },
+            OpCode::SetIndexRegister => {
+                self.index_register = instruction.immediate_word;
+            },
+            OpCode::AddToIndexRegister => todo!(),
+            OpCode::SetIndexRegisterToFont => todo!(),
+            OpCode::SetDelayRegister => todo!(),
+            OpCode::SetSoundRegister => todo!(),
+            OpCode::ReadDelayRegister => todo!(),
+            OpCode::SkipIfKeyPressed => todo!(),
+            OpCode::SkipIfKeyNotPressed => todo!(),
+            OpCode::WaitForKeyPress => todo!(),
+            OpCode::DecodeBCD => todo!(),
+            OpCode::SaveRegisters => todo!(),
+            OpCode::LoadRegisters => todo!(),
+            OpCode::Rand => todo!(),
+            OpCode::Unknown(instruction_word) => {
+                panic!("Unknown instruction: {:?}", instruction_word);
+            },
+        }
     }
 }
 
@@ -190,7 +244,7 @@ impl TryFrom<u16> for OpCode {
             (0xA, _) => { return Ok(Self::SetIndexRegister) },
             (0xB, _) => { return Ok(Self::JumpRelative) },
             (0xC, _) => { return Ok(Self::Rand) },
-            (0xD, _) => { return Ok(Self::UpdateDisplay) },
+            (0xD, _) => { return Ok(Self::DrawSprite) },
             (0xE, _) => {
                 if lower_byte == 0x9E { return Ok(Self::SkipIfKeyPressed) }
                 if lower_byte == 0xA1 { return Ok(Self::SkipIfKeyNotPressed) }
@@ -213,5 +267,21 @@ impl TryFrom<u16> for OpCode {
         }
 
         Err(())
+    }
+}
+
+impl ALUOperation {
+    fn perform(&self, lhs: u8, rhs: u8) -> u8 {
+        match self {
+            ALUOperation::SetValue => { rhs },
+            ALUOperation::Add => { lhs + rhs }, // TODO: Carry
+            ALUOperation::Sub => { lhs - rhs }, // TODO: Carry
+            ALUOperation::SubAndNegate => { rhs - lhs }, // TODO: Carry
+            ALUOperation::BitwiseOr => { lhs | rhs },
+            ALUOperation::BitwiseAnd => { lhs & rhs },
+            ALUOperation::BitwiseXor => { lhs ^ rhs },
+            ALUOperation::ShiftLeft => { lhs << rhs }, // TODO: Carry
+            ALUOperation::ShiftRight => { lhs >> rhs }, // TODO: Carry
+        }
     }
 }
