@@ -39,7 +39,7 @@ impl Display {
             y_index += 1;
         }
 
-        return has_colision;
+        has_colision
     }
 
     fn flip_pixel_at(&mut self, x: usize, y: usize) -> bool {

@@ -154,7 +154,8 @@ impl Cpu {
 
                 let sprite = &self.memory[sprite_start_index..(sprite_start_index + sprite_len)];
 
-                self.display.draw_sprite(x_coord, y_coord, sprite);
+                let has_colision = self.display.draw_sprite(x_coord, y_coord, sprite);
+                self.registers[0xF] = if has_colision { 0x01 } else { 0x00 };
             },
             OpCode::JumpAbsolute => {
                 self.program_counter = instruction.immediate_word;
