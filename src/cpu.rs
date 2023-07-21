@@ -160,9 +160,9 @@ impl Cpu {
                 self.program_counter = instruction.immediate_word;
             },
             OpCode::JumpWithOffset => {
-                let offset = self.registers[instruction.x_register_index] as u16;
+                let offset = if self.compatibility_mode { self.registers[0] } else { self.registers[instruction.x_register_index] };
 
-                let jump_target = instruction.immediate_word + offset;
+                let jump_target = instruction.immediate_word + (offset as u16);
                 self.program_counter = jump_target;
             },
             OpCode::CallSubrotine => {
@@ -201,7 +201,7 @@ impl Cpu {
                     OperandType::Immediate => { instruction.immediate_byte },
                 };
 
-                let (result, carry) = operation.perform(lhs, rhs);
+                let (result, carry) = operation.perform(lhs, rhs, self.compatibility_mode);
                 self.registers[instruction.x_register_index] = result;
 
                 if let Some(carry_value) = carry {
@@ -268,6 +268,8 @@ impl Cpu {
 
                     memory_index += 1;
                 }
+
+                self.index_register += instruction.x_register_index as u16 + 1;
             },
             OpCode::LoadRegisters => {
                 let mut memory_index = self.index_register as usize;
@@ -277,6 +279,8 @@ impl Cpu {
 
                     memory_index += 1;
                 }
+
+                self.index_register += instruction.x_register_index as u16 + 1;
             },
             OpCode::Rand => {
                 self.registers[instruction.x_register_index] = rand::random::<u8>() & instruction.immediate_byte;
@@ -374,7 +378,7 @@ impl From<u16> for OpCode {
 }
 
 impl ALUOperation {   
-    fn perform(&self, lhs: u8, rhs: u8) -> (u8, Option<u8>) {
+    fn perform(&self, lhs: u8, rhs: u8, compatibility_mode: bool) -> (u8, Option<u8>) {
         match self {
             ALUOperation::SetValue => { (rhs, None) },
             ALUOperation::Add => { 
@@ -386,8 +390,14 @@ impl ALUOperation {
             ALUOperation::BitwiseOr => { (lhs | rhs, None) },
             ALUOperation::BitwiseAnd => { (lhs & rhs, None) },
             ALUOperation::BitwiseXor => { (lhs ^ rhs, None) },
-            ALUOperation::ShiftLeft => { (lhs << 1, if lhs & 0x80 != 0 { Some(1) } else { Some(0) }) },
-            ALUOperation::ShiftRight => { (lhs >> 1, if lhs & 0x01 != 0 { Some(1) } else { Some(0) }) },
+            ALUOperation::ShiftLeft => { 
+                let operand = if compatibility_mode { rhs } else { lhs };
+
+                (operand << 1, if operand & 0x80 != 0 { Some(1) } else { Some(0) }) },
+            ALUOperation::ShiftRight => {
+                let operand = if compatibility_mode { rhs } else { lhs };
+
+                (operand >> 1, if operand & 0x01 != 0 { Some(1) } else { Some(0) }) },
         }
     }
 }
