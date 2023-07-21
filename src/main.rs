@@ -18,7 +18,7 @@ fn main() {
     let (mut canvas, mut event_pump) = init_sdl();
 
     let mut rom = Vec::new();
-    let mut rom_file = File::open("test_opcode.ch8").expect("Unable to open ROM file.");
+    let mut rom_file = File::open("Sirpinski.ch8").expect("Unable to open ROM file.");
     rom_file.read_to_end(&mut rom).expect("Unable to read ROM file.");
 
     let mut cpu = cpu::Cpu::new();
@@ -79,7 +79,7 @@ fn handle_event_loop(event_pump: &mut EventPump) -> Vec<Event> {
             sdl2::event::Event::Quit {..} => {
                 result.push(Event::Quit)
             },
-            sdl2::event::Event::KeyUp { keycode: Some(code), ..} => {
+            sdl2::event::Event::KeyDown { keycode: Some(code), ..} => {
                 println!("Key pressed: {}", code);
 
                 if code == Keycode::Escape {
