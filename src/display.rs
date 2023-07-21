@@ -1,5 +1,7 @@
 pub(crate) const DISPLAY_WIDTH: usize = 64;
 pub(crate) const DISPLAY_HEIGHT: usize = 32;
+
+const PIXEL_FADE_RATE: u8 = 8;
 pub(crate) struct Display {
     // TODO: Replacing this array with a Vec would
     // enable us to easily implement multiple screen sizes.
@@ -15,6 +17,15 @@ impl Display {
 
     pub(crate) fn clear(&mut self) {
         self.data = [0; DISPLAY_WIDTH * DISPLAY_HEIGHT]
+    }
+
+    pub(crate) fn fade_pixels(&mut self) {
+        for pixel in &mut self.data {
+            // TODO: We probably want to fade the pixels following an exponetial curve, not a linear one.
+            if *pixel > 0 && *pixel < 0xFF {
+                *pixel = if *pixel >= PIXEL_FADE_RATE { *pixel - PIXEL_FADE_RATE } else { 0 };
+            }
+        }
     }
 
     pub(crate) fn draw_sprite(&mut self, x_coord: u8, y_coord: u8, sprite: &[u8]) -> bool {
@@ -46,7 +57,7 @@ impl Display {
         let data_index = y * DISPLAY_WIDTH + x;
 
         if self.data[data_index] == 0xFF {
-            self.data[data_index] = 0;
+            self.data[data_index] = 0xFF - PIXEL_FADE_RATE;
 
             true
         } else {

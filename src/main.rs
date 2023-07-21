@@ -25,7 +25,7 @@ fn main() {
     let (audio_device, mut canvas, mut event_pump) = sdl_wrapper::init_sdl();
 
     let mut rom = Vec::new();
-    let mut rom_file = File::open("Brix.ch8").expect("Unable to open ROM file.");
+    let mut rom_file = File::open("Pong.ch8").expect("Unable to open ROM file.");
     rom_file.read_to_end(&mut rom).expect("Unable to read ROM file.");
 
     let mut cpu = cpu::Cpu::new();
@@ -62,6 +62,8 @@ fn main() {
                 },
             }
         }
+
+        cpu.display.fade_pixels();
 
         let keys = keys_held
             .into_iter()
