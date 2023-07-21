@@ -5,6 +5,7 @@ mod sdl_wrapper;
 
 extern crate sdl2;
 
+use std::env;
 use std::{fs::File, io::Read};
 use std::time::Duration;
 
@@ -24,8 +25,12 @@ fn main() {
 
     let (audio_device, mut canvas, mut event_pump) = sdl_wrapper::init_sdl();
 
+    let args = env::args().collect::<Vec<_>>();
+
+    let rom_path = args.get(1).expect(format!("Usage: {} <ROM path>.", args[0]).as_str());
+
     let mut rom = Vec::new();
-    let mut rom_file = File::open("Pong.ch8").expect("Unable to open ROM file.");
+    let mut rom_file = File::open(rom_path).expect("Unable to open ROM file.");
     rom_file.read_to_end(&mut rom).expect("Unable to read ROM file.");
 
     let mut cpu = cpu::Cpu::new();
