@@ -10,7 +10,7 @@ use display::Display;
 use sdl2::rect::Rect;
 use sdl2::{pixels::Color, keyboard::Keycode, EventPump, render::Canvas};
 
-const PIXEL_SCALE: u32 = 8;
+const PIXEL_SCALE: u32 = 16;
 
 fn main() {
     let mut is_running = true;
@@ -18,7 +18,7 @@ fn main() {
     let (mut canvas, mut event_pump) = init_sdl();
 
     let mut rom = Vec::new();
-    let mut rom_file = File::open("rom.ch8").expect("Unable to open ROM file.");
+    let mut rom_file = File::open("test_opcode.ch8").expect("Unable to open ROM file.");
     rom_file.read_to_end(&mut rom).expect("Unable to read ROM file.");
 
     let mut cpu = cpu::Cpu::new();

@@ -2,7 +2,9 @@ use crate::display::Display;
 
 const FONT_START_ADDR: usize = 0x50;
 const ROM_START_ADDR: usize = 0x200;
-const DEFAULT_FONT: [u8; 80] = [
+
+const FONT_LINES_PER_CHAR: usize = 5;
+const DEFAULT_FONT: [u8; 16 * FONT_LINES_PER_CHAR] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1
     0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
@@ -61,7 +63,7 @@ enum OpCode {
     DrawSprite,
     ReturnFromSubrotine,
     JumpAbsolute,
-    JumpRelative,
+    JumpWithOffset,
     CallSubrotine,
     SkipIfEqual { operand_type: OperandType },
     SkipIfNotEqual { operand_type: OperandType },
@@ -135,7 +137,7 @@ impl Cpu {
         let instruction_word = ((instruction_hi as u16) << 8) | (instruction_lo as u16);
         self.program_counter += 2;
 
-        let instruction = Instruction::from_word(instruction_word);
+        let instruction: Instruction = instruction_word.into();
 
         println!("Instruction: {:?}", instruction.op_code);
 
@@ -154,14 +156,44 @@ impl Cpu {
 
                 self.display.draw_sprite(x_coord, y_coord, sprite);
             },
-            OpCode::ReturnFromSubrotine => todo!(),
             OpCode::JumpAbsolute => {
                 self.program_counter = instruction.immediate_word;
             },
-            OpCode::JumpRelative => todo!(),
-            OpCode::CallSubrotine => todo!(),
-            OpCode::SkipIfEqual { operand_type } => todo!(),
-            OpCode::SkipIfNotEqual { operand_type } => todo!(),
+            OpCode::JumpWithOffset => {
+                let offset = self.registers[instruction.x_register_index] as u16;
+
+                let jump_target = instruction.immediate_word + offset;
+                self.program_counter = jump_target;
+            },
+            OpCode::CallSubrotine => {
+                self.stack.push(self.program_counter);
+                self.program_counter = instruction.immediate_word;
+            },
+            OpCode::ReturnFromSubrotine => {
+                self.program_counter = self.stack.pop().expect("Tried to pop, but stack is empty.");
+            },
+            OpCode::SkipIfEqual { operand_type } => {
+                let lhs = self.registers[instruction.x_register_index];
+                let rhs = match operand_type {
+                    OperandType::Register => { self.registers[instruction.y_register_index] },
+                    OperandType::Immediate => { instruction.immediate_byte },
+                };
+
+                if lhs == rhs {
+                    self.program_counter += 2;
+                }
+            },
+            OpCode::SkipIfNotEqual { operand_type } => {
+                let lhs = self.registers[instruction.x_register_index];
+                let rhs = match operand_type {
+                    OperandType::Register => { self.registers[instruction.y_register_index] },
+                    OperandType::Immediate => { instruction.immediate_byte },
+                };
+
+                if lhs != rhs {
+                    self.program_counter += 2;
+                }
+            },
             OpCode::ArithmeticLogic { operand_type, operation } => {
                 let lhs = self.registers[instruction.x_register_index];
                 let rhs = match operand_type {
@@ -179,27 +211,67 @@ impl Cpu {
             OpCode::SetIndexRegister => {
                 self.index_register = instruction.immediate_word;
             },
-            OpCode::AddToIndexRegister => todo!(),
-            OpCode::SetIndexRegisterToFont => todo!(),
-            OpCode::SetDelayRegister => todo!(),
-            OpCode::SetSoundRegister => todo!(),
-            OpCode::ReadDelayRegister => todo!(),
+            OpCode::AddToIndexRegister => {
+                self.index_register += self.registers[instruction.x_register_index] as u16;
+            },
+            OpCode::SetIndexRegisterToFont => {
+                let char_index = self.registers[instruction.x_register_index] as usize;
+
+                self.index_register = (FONT_START_ADDR + (char_index * FONT_LINES_PER_CHAR)) as u16;
+            },
+            OpCode::SetDelayRegister => {
+                self.delay_timer = self.registers[instruction.x_register_index];
+            },
+            OpCode::SetSoundRegister => {
+                self.sound_timer = self.registers[instruction.x_register_index];
+            },
+            OpCode::ReadDelayRegister => {
+                self.registers[instruction.x_register_index] = self.delay_timer;
+            },
             OpCode::SkipIfKeyPressed => todo!(),
             OpCode::SkipIfKeyNotPressed => todo!(),
             OpCode::WaitForKeyPress => todo!(),
-            OpCode::DecodeBCD => todo!(),
-            OpCode::SaveRegisters => todo!(),
-            OpCode::LoadRegisters => todo!(),
-            OpCode::Rand => todo!(),
+            OpCode::DecodeBCD => {
+                let value = self.registers[instruction.x_register_index];
+                let hundreds = value / 100;
+                let tens = (value % 100) / 10;
+                let units = value % 10;
+
+                let memory_index = self.index_register as usize;
+                self.memory[memory_index + 0] = hundreds;
+                self.memory[memory_index + 1] = tens;
+                self.memory[memory_index + 2] = units;
+            },
+            OpCode::SaveRegisters => {
+                let mut memory_index = self.index_register as usize;
+
+                for register_index in 0..=instruction.x_register_index {
+                    self.memory[memory_index] = self.registers[register_index];
+
+                    memory_index += 1;
+                }
+            },
+            OpCode::LoadRegisters => {
+                let mut memory_index = self.index_register as usize;
+
+                for register_index in 0..=instruction.x_register_index {
+                    self.registers[register_index] = self.memory[memory_index];
+
+                    memory_index += 1;
+                }
+            },
+            OpCode::Rand => {
+                self.registers[instruction.x_register_index] = rand::random::<u8>() & instruction.immediate_byte;
+            },
             OpCode::Unknown(instruction_word) => {
-                panic!("Unknown instruction: {:?}", instruction_word);
+                panic!("Unknown instruction: 0x{:04X}", instruction_word);
             },
         }
     }
 }
 
-impl Instruction {
-    fn from_word(word: u16) -> Self {
+impl From<u16> for Instruction {
+    fn from(word: u16) -> Self {
         let op_code = word.try_into().ok();
         Self { 
             op_code: op_code.unwrap_or(OpCode::Unknown(word)), 
@@ -224,8 +296,8 @@ impl TryFrom<u16> for OpCode {
             return Ok(Self::ReturnFromSubrotine)
         }
         let higher_nibble = value >> 12;
-        let lower_nibble = value | 0xF;
-        let lower_byte = value | 0xFF;
+        let lower_nibble = value & 0xF;
+        let lower_byte = value & 0xFF;
 
         match (higher_nibble, lower_nibble) {
             (0x1, _) => { return Ok(Self::JumpAbsolute) },
@@ -246,7 +318,7 @@ impl TryFrom<u16> for OpCode {
             (0x8, 0xE) => { return Ok(Self::ArithmeticLogic { operand_type: OperandType::Register, operation: ALUOperation::ShiftLeft }) },
             (0x9, 0x0) => { return Ok(Self::SkipIfNotEqual { operand_type: OperandType::Register }) },
             (0xA, _) => { return Ok(Self::SetIndexRegister) },
-            (0xB, _) => { return Ok(Self::JumpRelative) },
+            (0xB, _) => { return Ok(Self::JumpWithOffset) },
             (0xC, _) => { return Ok(Self::Rand) },
             (0xD, _) => { return Ok(Self::DrawSprite) },
             (0xE, _) => {
@@ -283,8 +355,8 @@ impl ALUOperation {
                 let sum = lhs as u32 + rhs as u32;
 
                 ((sum & 0xFF) as u8, if sum > 0xFF { Some(1) } else { Some(0) }) },
-            ALUOperation::Sub => { (lhs - rhs, if lhs >= rhs { Some(1) } else { Some(0) }) },
-            ALUOperation::SubAndNegate => { (rhs - lhs, if rhs >= lhs { Some(1) } else { Some(0) }) },
+            ALUOperation::Sub => { (lhs.wrapping_sub(rhs), if lhs >= rhs { Some(1) } else { Some(0) }) },
+            ALUOperation::SubAndNegate => { (rhs.wrapping_sub(lhs), if rhs >= lhs { Some(1) } else { Some(0) }) },
             ALUOperation::BitwiseOr => { (lhs | rhs, None) },
             ALUOperation::BitwiseAnd => { (lhs & rhs, None) },
             ALUOperation::BitwiseXor => { (lhs ^ rhs, None) },
