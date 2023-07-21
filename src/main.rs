@@ -14,13 +14,14 @@ use sdl2::{pixels::Color, keyboard::Keycode, EventPump, render::Canvas};
 const PIXEL_SCALE: u32 = 16;
 
 fn main() {
+    let mut keys_held = [false; 16];
     let mut is_running = true;
     let mut buzzer_on = false;
 
     let (audio_device, mut canvas, mut event_pump) = init_sdl();
 
     let mut rom = Vec::new();
-    let mut rom_file = File::open("Pong.ch8").expect("Unable to open ROM file.");
+    let mut rom_file = File::open("SpaceInvaders.ch8").expect("Unable to open ROM file.");
     rom_file.read_to_end(&mut rom).expect("Unable to read ROM file.");
 
     let mut cpu = cpu::Cpu::new();
@@ -44,7 +45,27 @@ fn main() {
             is_running = false;
         }
 
-        cpu.tick();
+        for event in events {
+            match event {
+                Event::Quit => {
+                    is_running = false;
+                },
+                Event::KeyPressed(key_num) => {
+                    keys_held[key_num as usize] = true;
+                },
+                Event::KeyReleased(key_num) => {
+                    keys_held[key_num as usize] = false;
+                },
+            }
+        }
+
+        let keys = keys_held
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, is_held)| if is_held { Some(index as u8) } else { None })
+            .collect();
+
+        cpu.tick(keys);
 
         if tick_counter % 10 == 0 {
             update_display(&mut canvas, &cpu.display);
@@ -117,7 +138,8 @@ fn init_sdl() -> (AudioDevice<SquareWave>, Canvas<sdl2::video::Window>, EventPum
 #[derive(PartialEq)]
 enum Event {
     Quit,
-    KeyPressed(u8)
+    KeyPressed(u8),
+    KeyReleased(u8),
 }
 
 fn handle_event_loop(event_pump: &mut EventPump) -> Vec<Event> {
@@ -129,20 +151,49 @@ fn handle_event_loop(event_pump: &mut EventPump) -> Vec<Event> {
                 result.push(Event::Quit)
             },
             sdl2::event::Event::KeyDown { keycode: Some(code), ..} => {
-                println!("Key pressed: {}", code);
-
                 if code == Keycode::Escape {
                     result.push(Event::Quit)
                 }
 
-                // TODO: Parse the key
-                result.push(Event::KeyPressed(0));
+                if let Some(key_num) = try_keycode_into_key_num(code) {
+                    result.push(Event::KeyPressed(key_num))
+                }
+            },
+            sdl2::event::Event::KeyUp { keycode: Some(code), ..} => {
+                if let Some(key_num) = try_keycode_into_key_num(code) {
+                    result.push(Event::KeyReleased(key_num))
+                }
             },
             _ => { }
         }
     }
 
-    return result
+    result
+}
+
+fn try_keycode_into_key_num(keycode: Keycode) -> Option<u8> {
+    match keycode {
+        Keycode::Num1 => { Some(0x1) },
+        Keycode::Num2 => { Some(0x2) },
+        Keycode::Num3 => { Some(0x3) },
+        Keycode::Num4 => { Some(0xC) },
+
+        Keycode::Q => { Some(0x4) },
+        Keycode::W => { Some(0x5) },
+        Keycode::E => { Some(0x6) },
+        Keycode::R => { Some(0xD) },
+
+        Keycode::A => { Some(0x7) },
+        Keycode::S => { Some(0x8) },
+        Keycode::D => { Some(0x9) },
+        Keycode::F => { Some(0xE) },
+
+        Keycode::Z => { Some(0xA) },
+        Keycode::X => { Some(0x0) },
+        Keycode::C => { Some(0xB) },
+        Keycode::V => { Some(0xF) },
+        _ => None
+    }
 }
 
 fn update_display(canvas: &mut Canvas<sdl2::video::Window>, display: &Display) {

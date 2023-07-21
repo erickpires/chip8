@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::display::Display;
 
 const FONT_START_ADDR: usize = 0x50;
@@ -130,7 +132,7 @@ impl Cpu {
         }
     }
 
-    pub(crate) fn tick(&mut self) {
+    pub(crate) fn tick(&mut self, keys: HashSet<u8>) {
         let pc = self.program_counter as usize;
         let instruction_hi = self.memory[pc];
         let instruction_lo = self.memory[pc + 1];
@@ -226,9 +228,27 @@ impl Cpu {
             OpCode::ReadDelayRegister => {
                 self.registers[instruction.x_register_index] = self.delay_timer;
             },
-            OpCode::SkipIfKeyPressed => todo!(),
-            OpCode::SkipIfKeyNotPressed => todo!(),
-            OpCode::WaitForKeyPress => todo!(),
+            OpCode::SkipIfKeyPressed => {
+                let expected_key = self.registers[instruction.x_register_index];
+
+                if keys.contains(&expected_key) {
+                    self.program_counter += 2;
+                }
+             },
+            OpCode::SkipIfKeyNotPressed => { 
+                let expected_key = self.registers[instruction.x_register_index];
+
+                if !keys.contains(&expected_key) {
+                    self.program_counter += 2;
+                }
+            },
+            OpCode::WaitForKeyPress => {
+                if let Some(key_num) = keys.iter().next() { 
+                    self.registers[instruction.x_register_index] = *key_num;   
+                } else { // Loop
+                    self.program_counter -= 2;
+                }
+            },
             OpCode::DecodeBCD => {
                 let value = self.registers[instruction.x_register_index];
                 let hundreds = value / 100;
