@@ -169,8 +169,12 @@ impl Cpu {
                     OperandType::Immediate => { instruction.immediate_byte },
                 };
 
-                let result = operation.perform(lhs, rhs);
+                let (result, carry) = operation.perform(lhs, rhs);
                 self.registers[instruction.x_register_index] = result;
+
+                if let Some(carry_value) = carry {
+                    self.registers[0xF] = carry_value;
+                }
             },
             OpCode::SetIndexRegister => {
                 self.index_register = instruction.immediate_word;
@@ -271,17 +275,21 @@ impl TryFrom<u16> for OpCode {
 }
 
 impl ALUOperation {
-    fn perform(&self, lhs: u8, rhs: u8) -> u8 {
+    
+    fn perform(&self, lhs: u8, rhs: u8) -> (u8, Option<u8>) {
         match self {
-            ALUOperation::SetValue => { rhs },
-            ALUOperation::Add => { lhs + rhs }, // TODO: Carry
-            ALUOperation::Sub => { lhs - rhs }, // TODO: Carry
-            ALUOperation::SubAndNegate => { rhs - lhs }, // TODO: Carry
-            ALUOperation::BitwiseOr => { lhs | rhs },
-            ALUOperation::BitwiseAnd => { lhs & rhs },
-            ALUOperation::BitwiseXor => { lhs ^ rhs },
-            ALUOperation::ShiftLeft => { lhs << rhs }, // TODO: Carry
-            ALUOperation::ShiftRight => { lhs >> rhs }, // TODO: Carry
+            ALUOperation::SetValue => { (rhs, None) },
+            ALUOperation::Add => { 
+                let sum = lhs as u32 + rhs as u32;
+
+                ((sum & 0xFF) as u8, if sum > 0xFF { Some(1) } else { Some(0) }) },
+            ALUOperation::Sub => { (lhs - rhs, if lhs >= rhs { Some(1) } else { Some(0) }) },
+            ALUOperation::SubAndNegate => { (rhs - lhs, if rhs >= lhs { Some(1) } else { Some(0) }) },
+            ALUOperation::BitwiseOr => { (lhs | rhs, None) },
+            ALUOperation::BitwiseAnd => { (lhs & rhs, None) },
+            ALUOperation::BitwiseXor => { (lhs ^ rhs, None) },
+            ALUOperation::ShiftLeft => { (lhs << 1, if lhs & 0x80 != 0 { Some(1) } else { Some(0) }) },
+            ALUOperation::ShiftRight => { (lhs >> 1, if lhs & 0x01 != 0 { Some(1) } else { Some(0) }) },
         }
     }
 }
