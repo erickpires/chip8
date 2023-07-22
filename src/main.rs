@@ -27,7 +27,7 @@ fn main() {
 
     let args = env::args().collect::<Vec<_>>();
 
-    let rom_path = args.get(1).expect(format!("Usage: {} <ROM path>.", args[0]).as_str());
+    let rom_path = args.get(1).unwrap_or_else(|| panic!("Usage: {} <ROM path>.", args[0]));
 
     let mut rom = Vec::new();
     let mut rom_file = File::open(rom_path).expect("Unable to open ROM file.");

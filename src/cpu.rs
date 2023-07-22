@@ -200,7 +200,7 @@ impl Cpu {
                 let units = value % 10;
 
                 let memory_index = self.index_register as usize;
-                self.memory[memory_index + 0] = hundreds;
+                self.memory[memory_index] = hundreds;
                 self.memory[memory_index + 1] = tens;
                 self.memory[memory_index + 2] = units;
             },
